@@ -1,0 +1,195 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel de Testes - Rede Fisioterapia</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .tabs { display: flex; margin-bottom: 10px; }
+    .tab { padding: 10px 20px; background: #f0f0f0; margin-right: 5px; cursor: pointer; }
+    .tab.active { background: #007bff; color: #fff; }
+    .content { display: none; }
+    .content.active { display: block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f9f9f9; }
+    .success { background-color: #d4edda; }
+    .fail { background-color: #f8d7da; }
+    button { margin: 5px; padding: 5px 10px; }
+</style>
+</head>
+<body>
+
+<h1>Painel de Testes - Rede Fisioterapia</h1>
+<div class="tabs">
+    <div class="tab active" onclick="showTab('execucao')">Execução de Testes</div>
+    <div class="tab" onclick="showTab('falhas')">Reporte de Falhas</div>
+</div>
+
+<div id="execucao" class="content active">
+    <button onclick="exportCSV()">Exportar para CSV</button>
+    <table id="testTable">
+        <thead>
+            <tr>
+                <th>Regra</th>
+                <th>Resumo</th>
+                <th>Documentos</th>
+                <th>Glosa</th>
+                <th>Status</th>
+                <th>Observações</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <button onclick="addRow()">Adicionar Nova Regra</button>
+</div>
+
+<div id="falhas" class="content">
+    <h2>Reporte de Falhas</h2>
+    <form id="falhaForm">
+        <input type="text" id="falhaRegra" placeholder="Regra" required>
+        <input type="text" id="falhaDescricao" placeholder="Descrição da Falha" required>
+        <select id="falhaStatus">
+            <option value="Novo">Novo</option>
+            <option value="Em análise">Em análise</option>
+            <option value="Resolvido">Resolvido</option>
+        </select>
+        <button type="submit">Registrar Falha</button>
+    </form>
+    <ul id="falhaList"></ul>
+</div>
+
+<script>
+const regras = [
+    {regra:'R1', resumo:'Validar se existe Guia TISS', documentos:'Guia TISS', glosa:'2513'},
+    {regra:'R2', resumo:'Validar tipo de atendimento = Internação no JSON', documentos:'JSON', glosa:'Análise manual'},
+    {regra:'R3', resumo:'Validar se existe Pedido Médico', documentos:'Pedido Médico', glosa:'2513'},
+    {regra:'R4', resumo:'Validar assinatura do médico, carimbo e indicação clínica na Guia TISS', documentos:'Guia TISS', glosa:'3120'},
+    {regra:'R5', resumo:'Validar se existe Relatório Técnico', documentos:'Relatório Técnico', glosa:'3062'},
+    {regra:'R6', resumo:'Nome do paciente igual em todos os documentos', documentos:'Pedido Médico + Guia TISS + Relatório + JSON', glosa:'2513'},
+    {regra:'R7', resumo:'Número da carteira igual na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'2513'},
+    {regra:'R8', resumo:'Senha igual na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'1406'},
+    {regra:'R9', resumo:'Códigos dos procedimentos iguais na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'1818'},
+    {regra:'R10', resumo:'Quantidade de procedimentos igual na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'2513'},
+    {regra:'R11', resumo:'Assinatura do beneficiário presente na Guia TISS', documentos:'Guia TISS', glosa:'1010'},
+    {regra:'R12', resumo:'Datas dos procedimentos iguais na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'1317'},
+    {regra:'R13', resumo:'Pedido Médico solicita encaminhamento para fisioterapia', documentos:'Pedido Médico', glosa:'3120'},
+    {regra:'R14', resumo:'Pedido Médico possui carimbo e CRM válido', documentos:'Pedido Médico', glosa:'3120'},
+    {regra:'R15', resumo:'Data do Pedido Médico > 75 dias da sessão', documentos:'Pedido Médico + Guia TISS', glosa:'Análise manual'},
+    {regra:'R16', resumo:'CBO igual na Guia TISS e JSON', documentos:'Guia TISS + JSON', glosa:'Análise manual'},
+    {regra:'R17', resumo:'Assinatura do beneficiário ou responsável presente', documentos:'Guia TISS', glosa:'1010'},
+    {regra:'R18', resumo:'Datas iguais entre campos da Guia TISS', documentos:'Guia TISS', glosa:'1317'},
+    {regra:'R19', resumo:'Datas iguais comparadas ao JSON', documentos:'Guia TISS + JSON', glosa:'1323'},
+    {regra:'R20', resumo:'Pedido Médico solicita encaminhamento', documentos:'Pedido Médico', glosa:'3120'},
+    {regra:'R21', resumo:'Pedido Médico possui carimbo e assinatura', documentos:'Pedido Médico', glosa:'3120'},
+    {regra:'R22', resumo:'Data do Pedido Médico > 75 dias da sessão', documentos:'Pedido Médico + Guia TISS', glosa:'Análise manual'},
+    {regra:'R23', resumo:'Código CBO igual no JSON e Guia TISS', documentos:'Guia TISS + JSON', glosa:'Análise manual'}
+];
+
+function loadTable() {
+    const tbody = document.querySelector('#testTable tbody');
+    tbody.innerHTML = '';
+    regras.forEach((r, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${r.regra}</td>
+            <td>${r.resumo}</td>
+            <td>${r.documentos}</td>
+            <td>${r.glosa}</td>
+            <td id="status-${index}">Pendente</td>
+            <td><input type="text" id="obs-${index}" placeholder="Observações"></td>
+            <td>
+                <button onclick="markStatus(${index}, 'Sucesso')">Sucesso</button>
+                <button onclick="markStatus(${index}, 'Falha')">Falha</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    loadFromLocalStorage();
+}
+
+function markStatus(index, status) {
+    const statusCell = document.getElementById('status-' + index);
+    statusCell.textContent = status;
+    const row = statusCell.parentElement;
+    row.classList.remove('success', 'fail');
+    if (status === 'Sucesso') row.classList.add('success');
+    else row.classList.add('fail');
+    saveToLocalStorage();
+}
+
+function saveToLocalStorage() {
+    const data = [];
+    regras.forEach((r, index) => {
+        const status = document.getElementById('status-' + index).textContent;
+        const obs = document.getElementById('obs-' + index).value;
+        data.push({regra: r.regra, resumo: r.resumo, documentos: r.documentos, glosa: r.glosa, status: status, observacoes: obs});
+    });
+    localStorage.setItem('painelTestes', JSON.stringify(data));
+}
+
+function loadFromLocalStorage() {
+    const saved = localStorage.getItem('painelTestes');
+    if (saved) {
+        const data = JSON.parse(saved);
+        data.forEach((item, index) => {
+            document.getElementById('status-' + index).textContent = item.status;
+            document.getElementById('obs-' + index).value = item.observacoes;
+            const row = document.getElementById('status-' + index).parentElement;
+            row.classList.remove('success', 'fail');
+            if (item.status === 'Sucesso') row.classList.add('success');
+            else if (item.status === 'Falha') row.classList.add('fail');
+        });
+    }
+}
+
+function exportCSV() {
+    let csv = 'Regra,Resumo,Documentos,Glosa,Status,Observações\n';
+    regras.forEach((r, index) => {
+        const status = document.getElementById('status-' + index).textContent;
+        const obs = document.getElementById('obs-' + index).value;
+        csv += `${r.regra},${r.resumo},${r.documentos},${r.glosa},${status},${obs}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'painel_testes.csv';
+    a.click();
+}
+
+function addRow() {
+    const regra = prompt('Digite o ID da Regra:');
+    const resumo = prompt('Digite o resumo da Regra:');
+    const documentos = prompt('Digite os documentos necessários:');
+    const glosa = prompt('Digite a glosa:');
+    regras.push({regra, resumo, documentos, glosa});
+    loadTable();
+}
+
+function showTab(tabId) {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(content => content.classList.remove('active'));
+    document.querySelector(`.tab[onclick="showTab('${tabId}')"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+document.getElementById('falhaForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const regra = document.getElementById('falhaRegra').value;
+    const descricao = document.getElementById('falhaDescricao').value;
+    const status = document.getElementById('falhaStatus').value;
+    const li = document.createElement('li');
+    li.textContent = `Regra: ${regra} | Descrição: ${descricao} | Status: ${status}`;
+    document.getElementById('falhaList').appendChild(li);
+    this.reset();
+});
+
+window.onload = loadTable;
+</script>
+
+</body>
+</html>
